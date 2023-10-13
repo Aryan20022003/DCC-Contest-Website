@@ -1,5 +1,6 @@
 const express = require("express");
 const Question21 = require("../models/question21");
+const Question = require("../models/question");
 const populateDataToOriginalServer = require("../controllers/question/populateDataToOriginalServer.js");
 const router = express.Router();
 const leaderBoard = require("../models/leaderBoard.js");
@@ -7,10 +8,10 @@ const user = require("../models/user.js");
 const isDataMounted = new Array(22).fill(false);
 
 router.get("/getQuestion", async (req, res) => {
-  const requiredAttributes = ["name", "ques_id","day"];
+  const requiredAttributes = ["name", "ques_id", "day"];
   try {
     const questions = await Question21.find().select(requiredAttributes).exec();
-    const day = new Date().getDate() - 11; //day is 1-indexed
+    const day = new Date().getDate() - 12; //day is 1-indexed
     questions.forEach((question) => {
       question.ques_id = question.ques_id.replace("21days", "CPZEN");
       if (question.day == day) {
@@ -19,18 +20,34 @@ router.get("/getQuestion", async (req, res) => {
         question.isToday = false;
       }
     });
-    console.log(questions);
+    // console.log(questions);
     //{[name,ques_id,day,isToday]}
     if (isDataMounted[day] === false) {
-      const resultMounted = await populateDataToOriginalServer();
-      console.log("result from populated function ",resultMounted);
-      if (resultMounted.status !== 200) {
-        throw new Error("Error in mounting data");
+      let dayToSearch=(new Date().getDate() - 12).toString();
+      if(dayToSearch.length===1)
+      {
+        dayToSearch="0"+dayToSearch;
       }
-      isDataMounted[day] = true;
-      console.log("data mounted");
+      const isQuestionPresentInDB = await Question.findOne({
+        ques_id: `CPZEN_${dayToSearch}`,
+      }).exec();
+      if (!isQuestionPresentInDB) 
+      {
+        const resultMounted = await populateDataToOriginalServer();
+        console.log("result from populated function ", resultMounted);
+        if (resultMounted.status !== 200) {
+          throw new Error("Error in mounting data");
+        }
+        isDataMounted[day] = true;
+        console.log("data mounted");
+      }
+      else
+      {
+        isDataMounted[day] = true;
+        console.log("server restarted but data already mounted");
+      }
     }
-    console.log("already mounted")
+    console.log("already mounted");
     //{status:200,questions:[{name,ques_id,day,isToday}]}
     // {status:200,body:{questions:[{name,ques_id,day,isToday}],message:"OKAY"}}
     res.status(200).json({ message: "OKAY", questions: questions });
@@ -46,7 +63,7 @@ router.post("/userDetails", async (req, resp) => {
   //req.body.name
   const name = req.body.name;
   const username = req.body.username;
-  
+
   if (name == null || username == null) {
     resp.status(400).json({ message: "username or name not provided" });
     return;
@@ -55,16 +72,16 @@ router.post("/userDetails", async (req, resp) => {
     console.log("userDetails");
     console.log(name, username);
     const userData = await user
-    .find({ username: username }, `codeforcesURL questions_solved` )
-    .exec();
-    
+      .find({ username: username }, `codeforcesURL questions_solved`)
+      .exec();
+
     if (userData.length === 0) {
       //user not found
       resp.status(400).json({ message: "user not found" });
       return;
     }
 
-    const searchParameter = "CPZEN_" + (new Date().getDate() - 11).toString();
+    const searchParameter = "CPZEN_" + (new Date().getDate() - 12).toString();
 
     const currentData = await leaderBoard
       .findOne({ username: username })
@@ -73,9 +90,11 @@ router.post("/userDetails", async (req, resp) => {
     let heatMap = currentData ? currentData.heatMap : "0".repeat(22);
     const codeForcesURL = userData[0].codeforcesURL;
 
+    console.log("userData\n", userData, "\n");
+
     if (userData[0].questions_solved.includes(searchParameter)) {
       const heatMapArray = heatMap.split("");
-      heatMapArray[new Date().getDate() - 11] = "1";
+      heatMapArray[new Date().getDate() - 12] = "1";
       heatMap = heatMapArray.join("");
       scoreNow += 1;
     }
@@ -97,12 +116,11 @@ router.post("/userDetails", async (req, resp) => {
       )
       .exec();
 
-      
-  console.log("updated data\n",data);
+    console.log("updated data\n", data);
 
     resp.status(200).json({ data: { headMap: heatMap, point: scoreNow } });
   } catch (err) {
-    console.log(err.message)
+    console.log(err.message);
     resp.status(500).json({ data: { headMap: "0".repeat(22), point: 0 } });
   }
   //{status:200,body{data:{headMap:"101111100",point:0}}}
