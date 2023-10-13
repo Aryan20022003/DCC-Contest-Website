@@ -42,20 +42,22 @@ router.get("/getQuestion", async (req, res) => {
 });
 
 router.post("/userDetails", async (req, resp) => {
-  //req.body.userName
+  //req.body.username
   //req.body.name
   const name = req.body.name;
-  const userName = req.body.userName;
-
-  if (name == null || userName == null) {
-    resp.status(400).json({ message: "userName or name not provided" });
+  const username = req.body.username;
+  
+  if (name == null || username == null) {
+    resp.status(400).json({ message: "username or name not provided" });
     return;
   }
   try {
+    console.log("userDetails");
+    console.log(name, username);
     const userData = await user
-      .find({ userName: userName }, { codeforcesURL, questions_solved })
-      .exec();
-
+    .find({ username: username }, `codeforcesURL questions_solved` )
+    .exec();
+    
     if (userData.length === 0) {
       //user not found
       resp.status(400).json({ message: "user not found" });
@@ -65,7 +67,7 @@ router.post("/userDetails", async (req, resp) => {
     const searchParameter = "CPZEN_" + (new Date().getDate() - 11).toString();
 
     const currentData = await leaderBoard
-      .findOne({ userName: userName })
+      .findOne({ username: username })
       .exec();
     let scoreNow = currentData ? currentData.totalScore : 0;
     let heatMap = currentData ? currentData.heatMap : "0".repeat(22);
@@ -77,15 +79,17 @@ router.post("/userDetails", async (req, resp) => {
       heatMap = heatMapArray.join("");
       scoreNow += 1;
     }
+
+    console.log("scoreNow", scoreNow);
     const data = await leaderBoard
       .updateOne(
-        { userName: userName },
+        { username: username },
         {
           $set: {
             totalScore: scoreNow,
             heatMap: heatMap,
             codeforcesURL: codeForcesURL,
-            userName: userName,
+            username: username,
             name: name,
           },
         },
@@ -93,22 +97,26 @@ router.post("/userDetails", async (req, resp) => {
       )
       .exec();
 
+      
+  console.log("updated data\n",data);
+
     resp.status(200).json({ data: { headMap: heatMap, point: scoreNow } });
   } catch (err) {
+    console.log(err.message)
     resp.status(500).json({ data: { headMap: "0".repeat(22), point: 0 } });
   }
   //{status:200,body{data:{headMap:"101111100",point:0}}}
 });
 
 router.get("/leaderBoard", async (req, resp) => {
-  //[{status:200,data:{userName:"",name:"",point:"",codeForces:""}}]
+  //[{status:200,data:{username:"",name:"",point:"",codeForces:""}}]
   try {
     const leaderBoardData = await leaderBoard
       .find()
       .sort({ totalScore: -1 })
       .exec();
     resp.status(200).json({ data: leaderBoardData });
-    //[{name,userName,codeForces,totalScore}]
+    //[{name,username,codeForces,totalScore}]
   } catch (err) {
     resp.status(500).json({ data: {} });
   }
